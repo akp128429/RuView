@@ -1,0 +1,32 @@
+worker_processes 1;
+pid /tmp/render-nginx.pid;
+error_log /dev/stderr warn;
+events { worker_connections 256; }
+http {
+  include /etc/nginx/mime.types;
+  default_type application/octet-stream;
+  access_log off;
+  map $http_upgrade $connection_upgrade { default upgrade; '' close; }
+  server {
+    listen ${PORT};
+    server_name _;
+    add_header X-RuView-Source "SYNTHETIC" always;
+    add_header X-Content-Type-Options nosniff always;
+    if ($request_method !~ ^(GET|HEAD)$) { return 405; }
+    location = / { return 302 /ui/index.html; }
+    location / {
+      proxy_pass http://127.0.0.1:3000;
+      proxy_http_version 1.1;
+      proxy_set_header Host localhost;
+      proxy_set_header Authorization "Bearer ${RUVIEW_API_TOKEN}";
+      proxy_set_header Upgrade $http_upgrade;
+      proxy_set_header Connection $connection_upgrade;
+      proxy_set_header Accept-Encoding "";
+      proxy_read_timeout 3600s;
+      proxy_buffering off;
+      sub_filter_types text/html;
+      sub_filter '</body>' '<div style="position:fixed;bottom:0;left:0;right:0;z-index:2147483647;background:#ffc857;color:#171717;text-align:center;font:13px sans-serif;padding:7px">SYNTHETIC DEMO — Simulated data. No live Wi-Fi or people are being sensed. Public demo is read-only.</div></body>';
+      sub_filter_once on;
+    }
+  }
+}
